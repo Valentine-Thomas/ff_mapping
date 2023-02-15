@@ -1,0 +1,69 @@
+---
+title: "FF mapping project_Statistics"
+output: html_notebook
+---
+*Ctrl+Alt+I*
+#useful packages
+```{r}
+library(ggplot2) 
+library(ggpubr)
+library(rstatix) 
+```
+
+
+# charge the datasets
+
+```{r}
+setwd('~/Analysis/POI_replicats/')
+
+#medium group
+Fus1<-read.csv('Fus1/aligned_trajectories/Data/dir_distance_P_POI.csv')
+Exo70<-read.csv('Exo70/aligned_trajectories/Data/dir_distance_P_POI.csv')
+Exo84<-read.csv('Exo84/aligned_trajectories/Data/dir_distance_P_POI.csv')
+
+#Proximal group
+Prm1<-read.csv('Prm1/aligned_trajectories/Data/dir_distance_P_POI.csv')
+Dni1<-read.csv('Dni1/aligned_trajectories/Data/dir_distance_P_POI.csv')
+Dni2<-read.csv('Dni2/aligned_trajectories/Data/dir_distance_P_POI.csv')
+
+#Distal group
+Cdc8<-read.csv('Cdc8/aligned_trajectories/Data/dir_distance_P_POI.csv')
+Myo51<-read.csv('Myo51/aligned_trajectories/Data/dir_distance_P_POI.csv')
+
+```
+
+# Are replicats significantly different
+
+```{r}
+# outliers 
+```
+
+# Rearrange datasets for ANOVA
+need 3 subgroups containing mean [-60,-40[ (60 to 42), [-40,-20] (39 to 21), [-20,0](18 to 0) for each event of each replicate 
+
+```{r}
+Mean.subset=function(dataframe)
+{mean.early=as.data.frame(rowMeans(dataframe[,5:11], na.rm=TRUE))
+mean.mid=as.data.frame(rowMeans(dataframe[,12:18], na.rm=TRUE))
+mean.late=as.data.frame(rowMeans(dataframe[,19:25], na.rm=TRUE))
+df=cbind(dataframe,mean.late,mean.mid,mean.early)
+return(df)
+}
+
+#Mid grouo
+Fus1=Mean.subset(Fus1)
+Exo70=Mean.subset(Exo70)
+Exo84=Mean.subset(Exo84)
+
+#Proximal group
+Dni1=Mean.subset(Dni1)
+Dni2=Mean.subset(Dni2)
+
+#Distal group
+Cdc8=Mean.subset(Cdc8)
+Myo51=Mean.subset(Myo51)
+
+# compare distribution for each POI between each replicates
+index_rep=function(dataframe){}
+```
+
