@@ -2,12 +2,19 @@
 title: "FF mapping project_Statistics"
 output: html_notebook
 ---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache.rebuild = TRUE)
+```
 *Ctrl+Alt+I*
 #useful packages
 ```{r}
 library(ggplot2) 
 library(ggpubr)
 library(rstatix) 
+library(dplyr)
+library(plyr)
+
 ```
 
 
@@ -38,15 +45,20 @@ Myo51<-read.csv('Myo51/aligned_trajectories/Data/dir_distance_P_POI.csv')
 # outliers 
 ```
 
-# Rearrange datasets for ANOVA
+#Prepare datasets for statistical test
 need 3 subgroups containing mean [-60,-40[ (60 to 42), [-40,-20] (39 to 21), [-20,0](18 to 0) for each event of each replicate 
+
 
 ```{r}
 Mean.subset=function(dataframe)
-{mean.early=as.data.frame(rowMeans(dataframe[,5:11], na.rm=TRUE))
-mean.mid=as.data.frame(rowMeans(dataframe[,12:18], na.rm=TRUE))
-mean.late=as.data.frame(rowMeans(dataframe[,19:25], na.rm=TRUE))
-df=cbind(dataframe,mean.late,mean.mid,mean.early)
+{mean.early=(rowMeans(dataframe[,5:11], na.rm=TRUE))
+mean.early=as.data.frame(mean.early)
+mean.mid=(rowMeans(dataframe[,12:18], na.rm=TRUE))
+mean.mid=as.data.frame(mean.mid)
+mean.late=(rowMeans(dataframe[,19:25], na.rm=TRUE))
+mean.late=as.data.frame(mean.late)
+df=cbind(dataframe,mean.early,mean.mid,mean.late)
+
 return(df)
 }
 
@@ -56,6 +68,7 @@ Exo70=Mean.subset(Exo70)
 Exo84=Mean.subset(Exo84)
 
 #Proximal group
+Prm1=Mean.subset(Prm1)
 Dni1=Mean.subset(Dni1)
 Dni2=Mean.subset(Dni2)
 
@@ -63,7 +76,94 @@ Dni2=Mean.subset(Dni2)
 Cdc8=Mean.subset(Cdc8)
 Myo51=Mean.subset(Myo51)
 
-# compare distribution for each POI between each replicates
-index_rep=function(dataframe){}
 ```
+# Statistical tests
+## getting id of event from the different replicates
+
+```{r}
+# compare distribution for each POI between each replicates
+index_rep=function(df){
+  id=list()
+  for (i in 1:n_distinct(df$Replicat)) { 
+    id[[i]]<-assign(paste0("index", i), which(df$Replicat==i))
+  }
+  return(id)
+}
+
+#mid group
+Rep.id.Fus1<-index_rep(Fus1)
+Rep.id.Exo70<-index_rep(Exo70)
+Rep.id.Exo84<-index_rep(Exo84)
+
+#Proximal group
+Rep.id.Prm1<-index_rep(Prm1)
+Rep.id.Dni1<-index_rep(Dni1)
+Rep.id.Dni2<-index_rep(Dni2)
+
+#Distal group
+Rep.id.Myo51<-index_rep(Myo51)
+Rep.id.Cdc8<-index_rep(Cdc8)
+```
+
+#boxplot of means at different fusion stage, all and by replicats
+
+```{r}
+par(mfrow=c(1,3))
+
+box.rep=function(df,id.list){
+  n=length(id.list)+1
+  par(mfrow=c(1,n))
+  names=c("mean.early","mean.mid","mean.late")
+  boxplot(df[,names])
+    for (i in seq_along(id.list)){
+      boxplot(df[id.list[[i]],names])
+    }
+}
+
+box.rep(Fus1,Rep.id.Fus1)
+box.rep(Exo70,Rep.id.Exo70)
+box.rep(Exo84,Rep.id.Exo84)
+
+box.rep(Prm1,Rep.id.Prm1)
+box.rep(Dni1,Rep.id.Dni1)
+box.rep(Dni2,Rep.id.Dni2)
+
+box.rep(Cdc8,Rep.id.Cdc8)
+box.rep(Myo51,Rep.id.Myo51)
+```
+
+#Paired t-test => each median is dependant on previous one
+
+
+```{r echo=TRUE, paged.print=FALSE, results='markup'}
+#test data normality
+test.norm=function(df){
+print(ddply(df, .(Replicat), summarise, ntest =
+   shapiro.test(mean.early)))
+print(ddply(df, .(Replicat), summarise, ntest =
+   shapiro.test(mean.mid)))
+print(ddply(Fus1, .(Replicat), summarise, ntest =
+   shapiro.test(mean.late)))}
+
+test.norm(Fus1)
+test.norm(Exo70)
+test.norm(Exo84)
+
+test.norm(Prm1)
+test.norm(Dni1)
+test.norm(Dni2)
+
+test.norm(Cdc8)
+test.norm(Myo51)
+
+
+ 
+```
+
+
+
+
+
+
+
 
