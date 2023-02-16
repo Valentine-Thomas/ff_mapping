@@ -14,7 +14,7 @@ library(ggpubr)
 library(rstatix) 
 library(dplyr)
 library(plyr)
-
+library(matrixStats)
 ```
 
 
@@ -42,43 +42,54 @@ Myo51<-read.csv('Myo51/aligned_trajectories/Data/dir_distance_P_POI.csv')
 # Are replicats significantly different
 
 ```{r}
-# outliers 
+# permutation test
 ```
 
 #Prepare datasets for statistical test
-need 3 subgroups containing mean [-60,-40[ (60 to 42), [-40,-20] (39 to 21), [-20,0](18 to 0) for each event of each replicate 
+need 3 subgroups containing medians [-60,-40[ (60 to 42), [-40,-20] (39 to 21), [-20,0](18 to 0) for each event of each replicate 
 
 
 ```{r}
-Mean.subset=function(dataframe)
-{mean.early=(rowMeans(dataframe[,5:11], na.rm=TRUE))
-mean.early=as.data.frame(mean.early)
-mean.mid=(rowMeans(dataframe[,12:18], na.rm=TRUE))
-mean.mid=as.data.frame(mean.mid)
-mean.late=(rowMeans(dataframe[,19:25], na.rm=TRUE))
-mean.late=as.data.frame(mean.late)
-df=cbind(dataframe,mean.early,mean.mid,mean.late)
+Med.subset=function(dataframe)
+{
+matrix=data.matrix(dataframe)
+med.early=rowMedians(matrix,cols=5:11, na.rm=TRUE)
+id1=which(med.early=='NaN')
+med.early[id1]<-'NA'
+med.early=as.numeric(med.early)
+med.early=as.data.frame(med.early)
+med.mid=rowMedians(matrix,cols=12:18, na.rm=TRUE)
+id2=which(med.mid=='NaN')
+med.mid[id2]<-'NA'
+med.mid=as.numeric(med.mid)
+med.mid=as.data.frame(med.mid)
+med.late=rowMedians(matrix, cols=19:25, na.rm=TRUE)
+id3=which(med.late=='NaN')
+med.late[id3]<-'NA'
+med.late=as.numeric(med.late)
+med.late=as.data.frame(med.late)
+df=cbind(dataframe,med.early,med.mid,med.late)
 
 return(df)
 }
 
 #Mid grouo
-Fus1=Mean.subset(Fus1)
-Exo70=Mean.subset(Exo70)
-Exo84=Mean.subset(Exo84)
+Fus1=Med.subset(Fus1)
+Exo70=Med.subset(Exo70)
+Exo84=Med.subset(Exo84)
 
 #Proximal group
-Prm1=Mean.subset(Prm1)
-Dni1=Mean.subset(Dni1)
-Dni2=Mean.subset(Dni2)
+Prm1=Med.subset(Prm1)
+Dni1=Med.subset(Dni1)
+Dni2=Med.subset(Dni2)
 
 #Distal group
-Cdc8=Mean.subset(Cdc8)
-Myo51=Mean.subset(Myo51)
-
+Cdc8=Med.subset(Cdc8)
+Myo51=Med.subset(Myo51)
 ```
 # Statistical tests
-## getting id of event from the different replicates
+
+getting id of event from the different replicates
 
 ```{r}
 # compare distribution for each POI between each replicates
@@ -105,15 +116,16 @@ Rep.id.Myo51<-index_rep(Myo51)
 Rep.id.Cdc8<-index_rep(Cdc8)
 ```
 
-#boxplot of means at different fusion stage, all and by replicats
-
+# Graphical representation
+boxplot of medians at different fusion stage, all and by replicats
+Notes: could be interesting to look at violin plots too => asks Melvin if he knows how to do them 
 ```{r}
 par(mfrow=c(1,3))
 
 box.rep=function(df,id.list){
   n=length(id.list)+1
   par(mfrow=c(1,n))
-  names=c("mean.early","mean.mid","mean.late")
+  names=c("med.early","med.mid","med.late")
   boxplot(df[,names])
     for (i in seq_along(id.list)){
       boxplot(df[id.list[[i]],names])
@@ -133,17 +145,19 @@ box.rep(Myo51,Rep.id.Myo51)
 ```
 
 #Paired t-test => each median is dependant on previous one
+most of the data do not follow normal distribution => go to non parametric tests
+Wilcoxon signed ranks test
 
 
 ```{r echo=TRUE, paged.print=FALSE, results='markup'}
 #test data normality
 test.norm=function(df){
 print(ddply(df, .(Replicat), summarise, ntest =
-   shapiro.test(mean.early)))
+   shapiro.test(med.early)))
 print(ddply(df, .(Replicat), summarise, ntest =
-   shapiro.test(mean.mid)))
-print(ddply(Fus1, .(Replicat), summarise, ntest =
-   shapiro.test(mean.late)))}
+   shapiro.test(med.mid)))
+print(ddply(df, .(Replicat), summarise, ntest =
+   shapiro.test(med.late)))}
 
 test.norm(Fus1)
 test.norm(Exo70)
