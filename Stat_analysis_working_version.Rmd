@@ -1,0 +1,307 @@
+---
+title: "FF mapping project_Statistics"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache.rebuild = TRUE)
+```
+*Ctrl+Alt+I*
+#useful packages
+```{r}
+library(ggplot2) 
+library(ggpubr)
+library(rstatix) 
+library(dplyr)
+library(plyr)
+library(tidyr)
+library(matrixStats)
+```
+
+
+charge the datasets 
+
+```{r}
+setwd('~/Analysis/POI_replicats/')
+
+#medium group
+Fus1<-read.csv('Fus1/aligned_trajectories/Data/dir_distance_P_POI.csv')
+Exo70<-read.csv('Exo70/aligned_trajectories/Data/dir_distance_P_POI.csv')
+Exo84<-read.csv('Exo84/aligned_trajectories/Data/dir_distance_P_POI.csv')
+
+#Proximal group
+Prm1<-read.csv('Prm1/aligned_trajectories/Data/dir_distance_P_POI.csv')
+Dni1<-read.csv('Dni1/aligned_trajectories/Data/dir_distance_P_POI.csv')
+Dni2<-read.csv('Dni2/aligned_trajectories/Data/dir_distance_P_POI.csv')
+
+#Distal group
+Cdc8<-read.csv('Cdc8/aligned_trajectories/Data/dir_distance_P_POI.csv')
+Myo51<-read.csv('Myo51/aligned_trajectories/Data/dir_distance_P_POI.csv')
+
+col=c("Event","Protein", "Replicat", "Dist",-60,-57, -54, -51, -48, -45,-42, -39, -36,-33,-30, -27, -24, -21, -18, -15, -12,-9, -6, -3, 0)
+colnames(Fus1)<-col
+colnames(Exo70)<-col
+colnames(Exo84)<-col
+
+colnames(Prm1)<-col
+colnames(Dni1)<-col
+colnames(Dni2)<-col
+
+colnames(Cdc8)<-col
+colnames(Myo51)<-col
+
+
+```
+
+#Prepare datasets for statistical test
+need 3 subgroups containing medians [-60,-30[ (-60 to -30), [-40,-20] (-27 to -9, [-20,0](-6 to -0) for each event of each replicate 
+
+
+```{r}
+Med.subset=function(dataframe)
+{
+matrix=data.matrix(dataframe)
+med.early=rowMedians(matrix,cols=5:15, na.rm=TRUE)
+id1=which(med.early=='NaN')
+med.early[id1]<-'NA'
+med.early=as.numeric(med.early)
+med.early=as.data.frame(med.early)
+med.mid=rowMedians(matrix,cols=16:22, na.rm=TRUE)
+id2=which(med.mid=='NaN')
+med.mid[id2]<-'NA'
+med.mid=as.numeric(med.mid)
+med.mid=as.data.frame(med.mid)
+med.late=rowMedians(matrix, cols=23:25, na.rm=TRUE)
+id3=which(med.late=='NaN')
+med.late[id3]<-'NA'
+med.late=as.numeric(med.late)
+med.late=as.data.frame(med.late)
+df=cbind(dataframe,med.early,med.mid,med.late)
+
+return(df)
+}
+
+#Mid grouo
+Fus1=Med.subset(Fus1)
+Exo70=Med.subset(Exo70)
+Exo84=Med.subset(Exo84)
+
+#Proximal group
+Prm1=Med.subset(Prm1)
+Dni1=Med.subset(Dni1)
+Dni2=Med.subset(Dni2)
+
+#Distal group
+Cdc8=Med.subset(Cdc8)
+Myo51=Med.subset(Myo51)
+```
+# Statistical tests
+
+getting id of event from the different replicates
+
+```{r}
+# compare distribution for each POI between each replicates
+index_rep=function(df){
+  id=list()
+  for (i in 1:n_distinct(df$Replicat)) { 
+    id[[i]]<-assign(paste0("index", i), which(df$Replicat==i))
+  }
+  return(id)
+}
+
+#mid group
+Rep.id.Fus1<-index_rep(Fus1)
+Rep.id.Exo70<-index_rep(Exo70)
+Rep.id.Exo84<-index_rep(Exo84)
+
+#Proximal group
+Rep.id.Prm1<-index_rep(Prm1)
+Rep.id.Dni1<-index_rep(Dni1)
+Rep.id.Dni2<-index_rep(Dni2)
+
+#Distal group
+Rep.id.Myo51<-index_rep(Myo51)
+Rep.id.Cdc8<-index_rep(Cdc8)
+```
+
+# Graphical representation
+boxplot of medians at different fusion stage, all and by replicats
+Notes: could be interesting to look at violin plots too => asks Melvin if he knows how to do them 
+```{r}
+
+box.rep=function(df){
+  data<-df %>% select(Event, Replicat,med.early,med.mid,med.late) %>%
+  pivot_longer(., cols = c(med.early,med.mid,med.late), names_to = "Var", values_to = "Val") 
+  data$Replicat<-as.factor(data$Replicat)
+  ggboxplot(data,"Var", "Val", color = "Replicat", palette=c("#87CEFA", "#FFDEAD"))
+}
+
+box.rep(Fus1)
+box.rep(Exo70)
+box.rep(Exo84)
+
+box.rep(Prm1)
+box.rep(Dni1)
+box.rep(Dni2)
+
+box.rep(Cdc8)
+box.rep(Myo51)
+```
+
+#Paired t-test => each median is dependant on previous one
+most of the data do not follow normal distribution => go to non parametric tests
+Wilcoxon signed ranks test
+
+
+```{r echo=TRUE, paged.print=FALSE, results='markup'}
+#test data normality
+test.norm=function(df){
+print(ddply(df, .(Replicat), summarise, ntest =
+   shapiro.test(med.early)))
+print(ddply(df, .(Replicat), summarise, ntest =
+   shapiro.test(med.mid)))
+print(ddply(df, .(Replicat), summarise, ntest =
+   shapiro.test(med.late)))}
+
+test.norm(Fus1)
+test.norm(Exo70)
+test.norm(Exo84)
+
+test.norm(Prm1)
+test.norm(Dni1)
+test.norm(Dni2)
+
+test.norm(Cdc8)
+test.norm(Myo51)
+
+
+ 
+```
+
+#Wilcoxon signed rank test
+
+Note: might not be the right test either => assume symmetry diferrence between group: might not be the case here 
+
+```{r}
+wil.test=function(df,id_list){
+  data<-df %>% select(Event, Replicat,med.early,med.mid, med.late) %>%
+  pivot_longer(., cols = c(med.early,med.mid,med.late), names_to = "Var", values_to = "Val") 
+  data$Replicat<-as.factor(data$Replicat)
+  ct=1
+  for (i in seq_along (id_list)){
+  dataR<-filter(data, Replicat == ct)
+  results<-wilcox_test(dataR,Val ~ Var,paired = TRUE)
+  print(results)
+  ct=ct+1
+    }
+}
+
+wil.test(Fus1,Rep.id.Fus1)
+wil.test(Exo70,Rep.id.Exo70)
+wil.test(Exo84,Rep.id.Exo84)
+
+wil.test(Prm1,Rep.id.Prm1)
+wil.test(Dni1,Rep.id.Dni1)
+wil.test(Dni2,Rep.id.Dni2)
+
+wil.test(Cdc8,Rep.id.Cdc8)
+wil.test(Myo51,Rep.id.Myo51)
+
+```
+## Graphic representation 
+Plot data as paired graphs
+
+```{r echo=TRUE, paged.print=TRUE, results='markup'}
+library(PairedData) # /!\ library seems to interfer with dyplr select()
+paired_plots=function(df, id_list){
+  n=length(id_list)
+  par(mfrow=c(1,3))
+  for (i in seq_along(id_list)){
+  med.early<-subset(df,  Replicat == i, med.early,drop = FALSE)
+  med.mid<-subset(df,  Replicat == i, med.mid, drop = FALSE)
+  med.late<-subset(df,  Replicat == i, med.mid, drop = FALSE)
+  pd <- paired(med.early, med.mid)
+  pd2<- paired(med.mid,med.late)
+  pd3<- paired(med.early, med.late)
+  pp1<-plot(pd, type = "profile")
+  pp2<-plot(pd2, type = "profile")
+  pp3<-plot(pd3, type = "profile")
+  print(pp1)
+  print(pp2)
+  print(pp3)
+  } 
+}
+
+paired_plots(Fus1,Rep.id.Fus1)
+paired_plots(Exo70,Rep.id.Exo70)
+paired_plots(Exo84,Rep.id.Exo84)
+
+paired_plots(Prm1,Rep.id.Prm1)
+paired_plots(Dni1,Rep.id.Dni1)
+paired_plots(Dni2,Rep.id.Dni2)
+
+paired_plots(Cdc8,Rep.id.Cdc8)
+paired_plots(Myo51,Rep.id.Myo51)
+
+```
+
+# Permutation tests
+diff premutation tests: of independence (is there a difference between value from indvd from group 1 and group2) and of symmetry (is there a difference between the value 1 and 2 of an individual)=> could replace wilcoxon test? 
+
+
+
+```{r}
+# permutation test : independance test
+library(coin)
+
+#test med of early tp
+
+independence_test( med.early~ Replicat, data = Fus1)
+independence_test( med.early~ Replicat, data = Exo70)
+independence_test( med.early~ Replicat, data = Exo84)
+
+independence_test( med.early~ Replicat, data = Prm1)
+independence_test( med.early~ Replicat, data = Dni1)
+independence_test( med.early~ Replicat, data = Dni2)
+
+independence_test( med.early~ Replicat, data = Cdc8)
+independence_test( med.early~ Replicat, data = Myo51)
+
+```
+```{r}
+#test med of medium time points
+independence_test( med.mid~ Replicat, data = Fus1)
+independence_test( med.mid~ Replicat, data = Exo70)
+independence_test( med.mid~ Replicat, data = Exo84)
+
+independence_test( med.mid~ Replicat, data = Prm1)
+independence_test( med.mid~ Replicat, data = Dni1)
+independence_test( med.mid~ Replicat, data = Dni2)
+
+independence_test( med.mid~ Replicat, data = Cdc8)
+independence_test( med.mid~ Replicat, data = Myo51)
+
+```
+
+```{r}
+#test med of late time points
+independence_test( med.late~ Replicat, data = Fus1)
+independence_test( med.late~ Replicat, data = Exo70)
+independence_test( med.late~ Replicat, data = Exo84)
+
+independence_test( med.late~ Replicat, data = Prm1)
+independence_test( med.late~ Replicat, data = Dni1)
+independence_test( med.late~ Replicat, data = Dni2)
+
+independence_test( med.late~ Replicat, data = Cdc8)
+independence_test( med.late~ Replicat, data = Myo51)
+
+```
+
+Issues: some replicats are significantly different 
+
+
+# Is fus1 significantly different from Myo52 in later timepoints?
+=> one sample wilc
+
+
