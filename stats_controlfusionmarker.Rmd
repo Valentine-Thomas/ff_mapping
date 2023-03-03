@@ -1,0 +1,135 @@
+---
+title: "Stats_CytoplasmicControl"
+author: "Valentine Thomas"
+date: "2023-03-02"
+output: html_document
+---
+
+```{r}
+library(ggplot2) 
+library(ggpubr)
+library(rstatix) 
+library(dplyr)
+library(plyr)
+library(tidyr)
+library(matrixStats)
+```
+
+
+
+```{r}
+Med.subset=function(dataframe){
+matrix=data.matrix(dataframe)
+med.early=rowMedians(matrix,cols=5:15, na.rm=TRUE)
+id1=which(med.early=='NaN')
+med.early[id1]<-'NA'
+med.early=as.numeric(med.early)
+med.early=as.data.frame(med.early)
+med.mid=rowMedians(matrix,cols=16:22, na.rm=TRUE)
+id2=which(med.mid=='NaN')
+med.mid[id2]<-'NA'
+med.mid=as.numeric(med.mid)
+med.mid=as.data.frame(med.mid)
+med.late=rowMedians(matrix, cols=23:25, na.rm=TRUE)
+id3=which(med.late=='NaN')
+med.late[id3]<-'NA'
+med.late=as.numeric(med.late)
+med.late=as.data.frame(med.late)
+df=cbind(dataframe,med.early,med.mid,med.late)
+return(df)
+}
+
+index_rep=function(df){
+  id=list()
+  for (i in 1:n_distinct(df$Replicat)) { 
+    id[[i]]<-assign(paste0("index", i), which(df$Replicat==i))
+  }
+  return(id)
+}
+
+box.rep=function(df,title){
+  data<-df %>% select(Event, Replicat,med.early,med.mid,med.late) %>%
+  pivot_longer(., cols = c(med.early,med.mid,med.late), names_to = "Var", values_to = "Val") 
+  data$Replicat<-as.factor(data$Replicat)
+  ggboxplot(data,"Var", "Val", color = "Replicat", palette=c("#87CEFA", "#FFDEAD"), title= title, ylab="Median distances",xlab="fusion moment", add="jitter")
+}
+
+test.norm=function(df){
+print(ddply(df, .(Replicat), summarise, ntest =
+   shapiro.test(med.early)))
+print(ddply(df, .(Replicat), summarise, ntest =
+   shapiro.test(med.mid)))
+print(ddply(df, .(Replicat), summarise, ntest =
+   shapiro.test(med.late)))}
+
+wil.test=function(df,id_list){
+  data<-df %>% select(Event, Replicat,med.early,med.mid, med.late) %>%
+  pivot_longer(., cols = c(med.early,med.mid,med.late), names_to = "Var", values_to = "Val") 
+  data$Replicat<-as.factor(data$Replicat)
+  ct=1
+  for (i in seq_along (id_list)){
+  dataR<-filter(data, Replicat == ct)
+  results<-wilcox_test(dataR,Val ~ Var,paired = TRUE)
+  print(results)
+  ct=ct+1
+    }
+}
+
+wil.test.tot=function(df){
+  data<-df %>% select(Event,med.early,med.mid, med.late) %>%
+  pivot_longer(., cols = c(med.early,med.mid,med.late), names_to = "Var", values_to = "Val") 
+  results<-wilcox_test(data,Val ~ Var,paired = TRUE)
+  print(results)
+
+    
+}
+#needs pairedData library => conflict
+paired_plots=function(df, id_list){
+  n=length(id_list)
+  par(mfrow=c(1,3))
+  for (i in seq_along(id_list)){
+  med.early<-subset(df,  Replicat == i, med.early,drop = FALSE)
+  med.mid<-subset(df,  Replicat == i, med.mid, drop = FALSE)
+  med.late<-subset(df,  Replicat == i, med.mid, drop = FALSE)
+  pd <- paired(med.early, med.mid)
+  pd2<- paired(med.mid,med.late)
+  pd3<- paired(med.early, med.late)
+  pp1<-plot(pd, type = "profile")
+  pp2<-plot(pd2, type = "profile")
+  pp3<-plot(pd3, type = "profile")
+  print(pp1)
+  print(pp2)
+  print(pp3)
+  } 
+}
+```
+
+```{r}
+control<-read.csv('~/Analysis/FusionMarker_control/control/aligned_trajectories/Data/dir_distance_P_M.csv')
+RFP<-read.csv('~/Analysis/FusionMarker_control/RFP/aligned_trajectories/Data/dir_distance_P_M.csv')
+col=c("Event","Protein", "Replicat", "Dist",-60,-57, -54, -51, -48, -45,-42, -39, -36,-33,-30, -27, -24, -21, -18, -15, -12,-9, -6, -3, 0)
+colnames(control)<-col
+colnames(RFP)<-col
+RFP=Med.subset(RFP)
+control=Med.subset(control)
+
+```
+
+```{r}
+Tot=rbind(control,RFP)
+Tot$Protein=as.factor(Tot$Protein)
+
+summary(Tot)
+```
+
+
+
+
+```{r}
+library(coin)
+independence_test( med.early~ Protein, data = Tot)
+independence_test( med.mid~ Protein, data = Tot)
+independence_test( med.late~ Protein, data = Tot)
+detach("package:coin", unload=TRUE)
+```
+
